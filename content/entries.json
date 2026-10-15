@@ -1,0 +1,231 @@
+[
+  {
+    "id": "host-discovery",
+    "title": "Find live hosts on a subnet",
+    "phase": "recon",
+    "noise": "noticeable",
+    "tags": ["nmap", "ping sweep", "subnet", "arp"],
+    "summary": "Learn which addresses respond before spending time on port scans. ARP discovery is the most reliable on a local segment; ICMP and TCP probes cover routed networks.",
+    "commands": [
+      {"label": "Local segment (ARP)", "cmd": "sudo nmap -sn -PR 10.10.10.0/24 -oA recon/hosts-arp"},
+      {"label": "Routed network", "cmd": "sudo nmap -sn -PE -PS22,80,443,445 -PA80,443 10.10.10.0/24 -oA recon/hosts-routed"}
+    ],
+    "notes": "Save every scan with -oA so results can be re-parsed later and attached to the report."
+  },
+  {
+    "id": "full-tcp-scan",
+    "title": "Scan all TCP ports on a host",
+    "phase": "recon",
+    "noise": "loud",
+    "tags": ["nmap", "port scan", "syn scan", "tcp"],
+    "summary": "A full 65,535-port sweep finds services that top-1000 scans miss. Run it first, then feed the open ports into a targeted service scan.",
+    "commands": [
+      {"label": "Full SYN scan", "cmd": "sudo nmap -sS -p- --min-rate 1000 -T4 $TARGET -oA scans/full"},
+      {"label": "Collect open ports", "cmd": "ports=$(grep -oE '[0-9]+/open' scans/full.gnmap | cut -d/ -f1 | sort -un | paste -sd,)"}
+    ],
+    "caution": "A raised --min-rate can overwhelm fragile devices. Drop it for embedded or legacy systems."
+  },
+  {
+    "id": "service-detection",
+    "title": "Identify services and versions",
+    "phase": "enumeration",
+    "noise": "noticeable",
+    "tags": ["nmap", "banner", "version", "scripts"],
+    "summary": "Run version detection and the default scripts against only the ports that were open. The output drives every later choice about what to enumerate.",
+    "commands": [
+      {"label": "Targeted service scan", "cmd": "sudo nmap -sV -sC -p \"$ports\" $TARGET -oA scans/services"}
+    ],
+    "notes": "Keep the XML output; searchsploit can read it directly in the vulnerability analysis phase."
+  },
+  {
+    "id": "smb-enumeration",
+    "title": "Enumerate SMB shares and users",
+    "phase": "enumeration",
+    "noise": "noticeable",
+    "tags": ["smb", "445", "139", "shares", "enum4linux", "smbclient", "netexec"],
+    "summary": "List shares, users and policies exposed over SMB. Start with a null session, then repeat with any credentials found in scope.",
+    "commands": [
+      {"label": "List shares anonymously", "cmd": "smbclient -L //$TARGET -N"},
+      {"label": "Broad enumeration", "cmd": "enum4linux-ng -A $TARGET"},
+      {"label": "Shares via NetExec", "cmd": "nxc smb $TARGET -u '' -p '' --shares"}
+    ],
+    "notes": "A refused null session is still a finding. Record it and move on to authenticated checks."
+  },
+  {
+    "id": "ldap-anonymous",
+    "title": "Test LDAP for anonymous binds",
+    "phase": "enumeration",
+    "noise": "quiet",
+    "tags": ["ldap", "389", "active directory", "bind"],
+    "summary": "Check whether the directory answers without credentials. A readable base DN usually reveals the domain name and naming contexts.",
+    "commands": [
+      {"label": "Read naming contexts", "cmd": "ldapsearch -x -H ldap://$TARGET -s base namingContexts"},
+      {"label": "Query a base DN", "cmd": "ldapsearch -x -H ldap://$TARGET -b 'DC=example,DC=local' '(objectClass=*)' dn"}
+    ]
+  },
+  {
+    "id": "dns-zone-transfer",
+    "title": "Check DNS for zone transfers",
+    "phase": "enumeration",
+    "noise": "quiet",
+    "tags": ["dns", "53", "axfr", "zone transfer"],
+    "summary": "An open zone transfer hands over every record in the zone. Test each name server separately, since only some may allow it.",
+    "commands": [
+      {"label": "Request a transfer", "cmd": "dig axfr example.local @$TARGET"},
+      {"label": "Same check with dnsrecon", "cmd": "dnsrecon -d example.local -n $TARGET -t axfr"}
+    ]
+  },
+  {
+    "id": "web-content-discovery",
+    "title": "Discover web directories and files",
+    "phase": "enumeration",
+    "noise": "loud",
+    "tags": ["web", "http", "gobuster", "ffuf", "directories", "80", "443"],
+    "summary": "Brute-force common paths to find admin panels, backups and forgotten endpoints. Match extensions to the technology the service scan reported.",
+    "commands": [
+      {"label": "gobuster", "cmd": "gobuster dir -u http://$TARGET -w /usr/share/wordlists/dirb/common.txt -x php,txt,html -o web/gobuster.txt"},
+      {"label": "ffuf", "cmd": "ffuf -u http://$TARGET/FUZZ -w /usr/share/seclists/Discovery/Web-Content/raft-medium-directories.txt -mc 200,204,301,302,307,401,403"}
+    ],
+    "caution": "Thousands of requests per minute show up clearly in web logs and may trigger a WAF block."
+  },
+  {
+    "id": "mssql-enumeration",
+    "title": "Enumerate Microsoft SQL Server",
+    "phase": "enumeration",
+    "noise": "noticeable",
+    "tags": ["mssql", "sql server", "1433", "database", "impacket"],
+    "summary": "Pull the instance name, version and NTLM details from an exposed SQL Server, then connect with any credentials in scope.",
+    "commands": [
+      {"label": "Instance information", "cmd": "nmap -p1433 --script ms-sql-info,ms-sql-ntlm-info $TARGET"},
+      {"label": "Connect with Windows auth", "cmd": "impacket-mssqlclient 'DOMAIN/user:password'@$TARGET -windows-auth"}
+    ]
+  },
+  {
+    "id": "password-policy",
+    "title": "Read the password and lockout policy",
+    "phase": "enumeration",
+    "noise": "quiet",
+    "tags": ["password", "policy", "lockout", "smb", "rpc"],
+    "summary": "Know the lockout threshold and observation window before any credential testing. It decides how many attempts per account are safe.",
+    "commands": [
+      {"label": "With credentials", "cmd": "nxc smb $TARGET -u 'user' -p 'password' --pass-pol"},
+      {"label": "Null session via RPC", "cmd": "rpcclient -U '' -N $TARGET -c getdompwinfo"}
+    ],
+    "caution": "One extra attempt can lock a real person out of their account. Confirm the threshold first."
+  },
+  {
+    "id": "match-known-vulns",
+    "title": "Match service versions to known vulnerabilities",
+    "phase": "vuln-analysis",
+    "noise": "quiet",
+    "tags": ["searchsploit", "exploit-db", "cve", "version"],
+    "summary": "Search the local Exploit-DB copy using the service scan output. This sends nothing to the target, so it is a good first pass.",
+    "commands": [
+      {"label": "From scan XML", "cmd": "searchsploit --nmap scans/services.xml"},
+      {"label": "Manual lookup", "cmd": "searchsploit apache 2.4"}
+    ],
+    "notes": "A version match is a lead, not a finding. Confirm the service is actually vulnerable before reporting it."
+  },
+  {
+    "id": "nse-vuln-scripts",
+    "title": "Run Nmap vulnerability scripts",
+    "phase": "vuln-analysis",
+    "noise": "loud",
+    "tags": ["nmap", "nse", "vuln", "scripts"],
+    "summary": "The vuln script category checks for well-known flaws such as SMB and TLS weaknesses. Useful for a quick sweep, but review each hit by hand.",
+    "commands": [
+      {"label": "Vulnerability scripts", "cmd": "sudo nmap -sV --script vuln -p \"$ports\" $TARGET -oA scans/vuln"}
+    ],
+    "caution": "Some scripts can crash fragile services. Confirm the target and the script category are inside the agreed scope."
+  },
+  {
+    "id": "nikto-scan",
+    "title": "Scan a web server with Nikto",
+    "phase": "vuln-analysis",
+    "noise": "loud",
+    "tags": ["nikto", "web", "http", "misconfiguration"],
+    "summary": "Checks for outdated server software, risky default files and common misconfigurations. Expect false positives and verify each one.",
+    "commands": [
+      {"label": "Basic scan", "cmd": "nikto -h http://$TARGET -o web/nikto.txt"}
+    ],
+    "caution": "Nikto is very noisy and is detected by nearly every IDS and WAF."
+  },
+  {
+    "id": "check-credentials",
+    "title": "Check a found credential against services",
+    "phase": "exploitation",
+    "noise": "noticeable",
+    "tags": ["credentials", "winrm", "smb", "ssh", "netexec", "login"],
+    "summary": "Test a credential obtained in scope against the services that accept logins, one set at a time. Record where it works; that shows how far a single exposure reaches.",
+    "commands": [
+      {"label": "SMB", "cmd": "nxc smb $TARGET -u 'user' -p 'password'"},
+      {"label": "WinRM", "cmd": "nxc winrm $TARGET -u 'user' -p 'password'"},
+      {"label": "SSH", "cmd": "ssh user@$TARGET"}
+    ],
+    "caution": "Check the lockout policy first, and use only credentials that came from in-scope systems."
+  },
+  {
+    "id": "linux-privesc-checks",
+    "title": "Check Linux privilege escalation paths",
+    "phase": "post-exploitation",
+    "noise": "quiet",
+    "tags": ["linux", "privilege escalation", "sudo", "suid", "capabilities", "cron"],
+    "summary": "Four quick checks cover most local escalation paths: sudo rights, SUID binaries, file capabilities and scheduled jobs.",
+    "commands": [
+      {"label": "Current user and sudo rights", "cmd": "id && sudo -l"},
+      {"label": "SUID binaries", "cmd": "find / -perm -4000 -type f 2>/dev/null"},
+      {"label": "File capabilities", "cmd": "getcap -r / 2>/dev/null"},
+      {"label": "Scheduled jobs", "cmd": "cat /etc/crontab; ls -la /etc/cron.*"}
+    ]
+  },
+  {
+    "id": "windows-situational-awareness",
+    "title": "Orient yourself on a Windows host",
+    "phase": "post-exploitation",
+    "noise": "quiet",
+    "tags": ["windows", "whoami", "systeminfo", "groups", "privileges"],
+    "summary": "Establish who you are, what the machine is and which privileges the account holds before deciding on a next step.",
+    "commands": [
+      {"label": "Identity and privileges", "cmd": "whoami /all"},
+      {"label": "System details", "cmd": "systeminfo"},
+      {"label": "Local users and admins", "cmd": "net user && net localgroup administrators"}
+    ]
+  },
+  {
+    "id": "smb-signing-check",
+    "title": "Check whether SMB signing is required",
+    "phase": "config-review",
+    "noise": "quiet",
+    "tags": ["smb", "signing", "445", "hardening"],
+    "summary": "Hosts that do not require SMB signing are open to relay attacks. Report each one with the setting that fixes it.",
+    "commands": [
+      {"label": "Nmap script", "cmd": "nmap -p445 --script smb2-security-mode $TARGET"},
+      {"label": "NetExec banner", "cmd": "nxc smb $TARGET"}
+    ],
+    "notes": "Remediation: set \"Microsoft network server: Digitally sign communications (always)\" to Enabled through Group Policy."
+  },
+  {
+    "id": "tls-configuration",
+    "title": "Review TLS protocols and ciphers",
+    "phase": "config-review",
+    "noise": "noticeable",
+    "tags": ["tls", "ssl", "443", "ciphers", "certificate", "hardening"],
+    "summary": "List the protocol versions and cipher suites a service accepts, and check the certificate. Flag SSLv3, TLS 1.0 and 1.1, weak ciphers and expired certificates.",
+    "commands": [
+      {"label": "Nmap", "cmd": "nmap --script ssl-enum-ciphers,ssl-cert -p 443 $TARGET"},
+      {"label": "testssl.sh", "cmd": "testssl.sh --severity MEDIUM https://$TARGET"}
+    ]
+  },
+  {
+    "id": "ssh-configuration",
+    "title": "Audit an SSH server configuration",
+    "phase": "config-review",
+    "noise": "quiet",
+    "tags": ["ssh", "22", "sshd", "hardening", "ciphers"],
+    "summary": "Check the algorithms the server offers from the outside, and the effective settings on the host if you have access.",
+    "commands": [
+      {"label": "Remote audit", "cmd": "ssh-audit $TARGET"},
+      {"label": "Effective settings on the host", "cmd": "sudo sshd -T | grep -Ei 'permitrootlogin|passwordauthentication|x11forwarding|maxauthtries'"}
+    ]
+  }
+]

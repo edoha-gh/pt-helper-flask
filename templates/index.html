@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PT Helper</title>
+  <meta name="description" content="Searchable reference for configuration review, vulnerability analysis and penetration test methodology.">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script id="boot" type="application/json">{{ boot|tojson }}</script>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <a class="skip" href="#results">Skip to results</a>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="PT Helper home">
+        <svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+          <rect width="32" height="32" rx="8" fill="#0b7f8c"/>
+          <circle cx="14.5" cy="14.5" r="6" fill="none" stroke="#fff" stroke-width="2.4"/>
+          <path d="M19 19l5.5 5.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+        <span>PT Helper</span>
+      </a>
+
+      <nav class="phases" aria-label="Methodology phases">
+        <h2 class="side-heading">Phases</h2>
+        <ul id="phase-nav" class="phase-list"></ul>
+      </nav>
+
+      <div class="target">
+        <label for="target" class="side-heading">Target</label>
+        <input id="target" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="10.10.10.5">
+        <p class="target-help">Replaces <code>$TARGET</code> in every command. Stays in this browser.</p>
+      </div>
+
+      <p class="scope-note">For systems you are authorized to test.</p>
+    </aside>
+
+    <main class="main">
+      <div class="content">
+        <section class="hero" aria-labelledby="page-title">
+          <h1 id="page-title">Find the next step in your assessment</h1>
+          <p class="lede">Search methodology steps, commands and configuration checks by tool, service, port or technique.</p>
+
+          <form class="search" role="search" action="/" method="get">
+            <svg class="search-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>
+              <path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <label class="visually-hidden" for="q">Search</label>
+            <input id="q" name="q" type="search" autocomplete="off" spellcheck="false"
+                   placeholder="Try smb, port 445, nmap or sudo" value="{{ boot.query }}">
+            <kbd class="hint" aria-hidden="true">/</kbd>
+          </form>
+        </section>
+
+        <section class="results-wrap" aria-labelledby="results-title">
+          <h2 id="results-title" class="results-title" aria-live="polite"></h2>
+          <div id="results" class="results" tabindex="-1"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <noscript>
+    <p class="noscript">PT Helper needs JavaScript to search and filter.</p>
+  </noscript>
+</body>
+</html>
