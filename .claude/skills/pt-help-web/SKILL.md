@@ -11,12 +11,16 @@ A small Flask site that gives pentesters one searchable place for methodology st
 
 ```
 app.py                  Flask app: / (page), /api/search, /healthz, search scoring
+wsgi.py                 uwsgi entry point (module wsgi, callable app)
 requirements.txt        wheel, uwsgi, Flask
 sync.py                 SSH sync and deploy tool (see Syncing between machines)
+sync.config.json        Per-machine settings (git-ignored, written by `sync.py init`)
 content/entries.json    All searchable content (edit this to add material)
 templates/index.html    Main page shell
 static/style.css        Design tokens and layout
 static/app.js           Live search, phase filter, copy buttons, $TARGET substitution
+deploy/wsgi.ini         uwsgi settings, installed to /var/www/flask/wsgi.ini
+deploy/flask.service    systemd unit, installed to /etc/systemd/system/flask.service
 .claude/skills/pt-help-web/SKILL.md   This file
 ```
 
@@ -82,14 +86,40 @@ Keep the look modern and professional; the search box is the one prominent eleme
 
 `sync.py` (repo root) moves code and data to and from a server over SSH with key login only. Full setup, config and the conflict rules are in `README.md`. Claude's own workspace cannot reach the user's servers, so run it only where the user has the SSH key, or tell the user which command to run.
 
-- `python sync.py check` confirms key login, the server's Python and the remote folder. Start here when anything fails.
-- `server_files` in `sync.config.json` deploys files that live outside the app folder (`deploy/wsgi.ini` to `/var/www/flask/wsgi.ini`, `deploy/flask.service` to `/etc/systemd/system/flask.service` with `"sudo": true` and `"after": "sudo systemctl daemon-reload"`). `deploy` uploads only the ones whose server copy differs, installs them, backs up the old copy under `<remote_staging>/.backup/` on the server (staging defaults to `<remote_base>/staging`), then runs `after` and `post_deploy`.
-- `python sync.py test` checks the whole `sync.config.json`: values, key format (catches PuTTY .ppk), local paths, key login, server folders and group, the venv (Flask, uwsgi), passwordless sudo for `post_deploy`, and that the systemd unit exists. Each line is OK, WARN or FAIL, and any FAIL gives exit code 1.
-- `python sync.py status` previews all changes. Run it before `data` or `deploy` and show the user the plan.
-- `python sync.py data` syncs `content/` both ways using the last-synced state in `.sync-state.json`. Conflicts are never overwritten; the user picks `--prefer local` or `--prefer remote`. Deletions only travel with `--delete`. `--force local|remote` ignores the saved state and makes the other side match the winner (differing files copied, extras kept unless `--delete`, overwritten files backed up). `deploy --force` re-sends every code file.
-- `python sync.py deploy` pushes `app.py`, `templates/`, `static/` and `requirements.txt`, then, if `remote_venv` is set, creates that virtualenv on the server when missing (offering to `sudo apt-get install python3-venv` if needed) and runs `pip install -r requirements.txt` into it whenever the venv is new or requirements changed, then runs the `post_deploy` command from `sync.config.json` (this is where reloading uwsgi goes). If `remote_base` is set and the login cannot write there, it first creates the server folders with `sudo` (shows the command, asks, tries passwordless sudo then a password prompt).
+### Commands
 
-Settings live in `sync.config.json` (`host`, `remote_path`, `data_paths`, `code_paths`, `post_deploy`). It is git-ignored and holds no secrets; the key stays in the user's `~/.ssh`. Do not hand-edit `.sync-state.json`. Anything overwritten or deleted is backed up under `.sync-backup/<timestamp>/` on the side that changed. If a new folder should sync, add it to `data_paths` (shared, edited on both sides) or `code_paths` (pushed from the dev machine only), never both.
+- `python sync.py init` writes a starter `sync.config.json`.
+- `python sync.py check` is the quick test of key login, the server's Python and the remote folder.
+- `python sync.py test` checks the whole config: values, key format (catches a PuTTY .ppk), local paths, key login, server folders and `www-data` group, the venv (Flask, uwsgi), passwordless sudo for `post_deploy` and server files, and that the systemd unit exists. Each line is OK, WARN or FAIL, and any FAIL exits 1. Run it first when anything fails.
+- `python sync.py status` previews data and code changes. Show the user the plan before `data` or `deploy`.
+- `python sync.py data` syncs `content/` both ways using the saved state in `.sync-state.json`. Conflicts are never overwritten; the user picks `--prefer local` or `--prefer remote`. Deletions only travel with `--delete`. `--force local|remote` ignores the saved state and makes the other side match the winner (differing files copied, extras kept unless `--delete`, overwritten files backed up). A "deleted on the server, kept here" message means a stale `.sync-state.json`; use `--force local` rather than `--delete`.
+- `python sync.py deploy` pushes `code_paths` one way, then in this order: installs `server_files`, creates the venv if `remote_venv` is set and missing (offers `sudo apt-get install python3-venv` if needed), runs `pip install -r requirements.txt` when the venv is new or requirements changed, then runs `post_deploy`. Options: `-n` preview, `--force` re-send every code file and server file, `--pip` reinstall requirements, `--delete` remove server files not present locally, `--no-hook` skip `post_deploy`.
+
+### Settings in sync.config.json
+
+`host`, `port`, `identity_file`, `remote_base` (`/var/www/flask`), `remote_group` (`www-data`), `remote_path` (`/var/www/flask/app`), `remote_python`, `remote_venv` (`/var/www/flask/venv`), `remote_staging` (defaults to `<remote_base>/staging`), `data_paths`, `code_paths` (must include `wsgi.py`), `post_deploy` (`sudo systemctl restart flask`) and `server_files`:
+
+```json
+"server_files": [
+  {"local": "deploy/wsgi.ini", "remote": "/var/www/flask/wsgi.ini"},
+  {"local": "deploy/flask.service", "remote": "/etc/systemd/system/flask.service",
+   "sudo": true, "after": "sudo systemctl daemon-reload"}
+]
+```
+
+A server file is uploaded to the staging folder (mode 700) and installed to `remote` only when its server copy differs. `"sudo": true` installs it root-owned, `mode` defaults to `644`, `after` runs once after the install, and the old copy is backed up under `<remote_staging>/.backup/<timestamp>/`. File names must be unique.
+
+The config is git-ignored and holds no secrets; the key stays in the user's `~/.ssh`. Do not hand-edit `.sync-state.json`. Anything overwritten or deleted by `data` is backed up under `.sync-backup/<timestamp>/` on the side that changed. A new folder goes in `data_paths` (edited on both sides) or `code_paths` (pushed from the dev machine only), never both.
+
+### Server layout and permissions
+
+- `/var/www` is owned by `edoha:www-data` with setgid `2775` directories, so the login can write without sudo and nginx/uwsgi can read.
+- Sudo rules are exact-argument matches (wildcards would be root-equivalent). Keep them in `/etc/sudoers.d/` and edit with `visudo -f`: `www` (the folder-setup `mkdir -p`, `chmod 2775` and `chown -R edoha:www-data`), `flask-service` (`systemctl enable|start|stop|restart|reload|status flask`) and `z_edoha` (the exact `install -m 644 -o root -g root <staging>/flask.service /etc/systemd/system/flask.service` plus `systemctl daemon-reload`). `enable --now` is not covered by `enable flask`.
+- Packages for the uwsgi build: `python3-venv build-essential python3-dev libcrypt-dev`.
+- First deploy order: `python sync.py test`, `deploy`, `data --force local`, then once on the server `sudo systemctl enable flask` and `sudo systemctl start flask`. Later deploys restart the service through `post_deploy`.
+- Known risk: `/var/www/flask` is group-writable by `www-data`, so a compromised web app could replace a staged file before it is installed as root. Mitigate with `chmod 2755` on the base and app folders (and the matching sudoers line), or set `remote_staging` to `~/.ptsync/staging`.
+- The uwsgi service uses `socket = 127.0.0.1:5055` (uwsgi protocol), so nginx needs `include uwsgi_params; uwsgi_pass 127.0.0.1:5000;`. Nginx settings are still to be added.
+- The step-by-step checklist is saved in the PT-HELPER project as `claude/pre-deployment.md`.
 
 ## Likely next steps
 
