@@ -1,1 +1,3 @@
+wheel
+uwsgi
 Flask>=3.0

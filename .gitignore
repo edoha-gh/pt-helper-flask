@@ -4,3 +4,8 @@ __pycache__/
 venv/
 *.log
 .env
+
+# sync tool: machine-specific settings, last-synced state, overwritten-file backups
+sync.config.json
+.sync-state.json
+.sync-backup/
