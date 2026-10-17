@@ -118,7 +118,7 @@ The config is git-ignored and holds no secrets; the key stays in the user's `~/.
 - Packages for the uwsgi build: `python3-venv build-essential python3-dev libcrypt-dev`.
 - First deploy order: `python sync.py test`, `deploy`, `data --force local`, then once on the server `sudo systemctl enable flask` and `sudo systemctl start flask`. Later deploys restart the service through `post_deploy`.
 - Known risk: `/var/www/flask` is group-writable by `www-data`, so a compromised web app could replace a staged file before it is installed as root. Mitigate with `chmod 2755` on the base and app folders (and the matching sudoers line), or set `remote_staging` to `~/.ptsync/staging`.
-- The uwsgi service uses `socket = 127.0.0.1:5055` (uwsgi protocol), so nginx needs `include uwsgi_params; uwsgi_pass 127.0.0.1:5000;`. Nginx settings are still to be added.
+- The uwsgi service uses `socket = 127.0.0.1:5055` (uwsgi protocol), so nginx needs `include uwsgi_params; uwsgi_pass 127.0.0.1:5055;`. Nginx settings are still to be added.
 - The step-by-step checklist is saved in the PT-HELPER project as `claude/pre-deployment.md`.
 
 ## Likely next steps
