@@ -1,5 +1,5 @@
-"""WSGI entry point for uwsgi: module wsgi, callable app."""
-from app import app
+"""WSGI entry point for uwsgi: module wsgi, callable app.
 
-if __name__ == "__main__":
-    app.run()
+Nothing here starts a server. uwsgi imports `app`; run `python app.py` for the dev server.
+"""
+from app import app  # noqa: F401
