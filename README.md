@@ -108,7 +108,8 @@ python sync.py init       # writes sync.config.json
     {"local": "deploy/flask.service", "remote": "/etc/systemd/system/flask.service",
      "sudo": true, "after": "sudo systemctl daemon-reload"},
     {"local": "deploy/nginx-flask.conf", "remote": "/etc/nginx/conf.d/flask.conf",
-     "sudo": true, "after": "sudo nginx -t && sudo systemctl reload nginx"}
+     "sudo": true, "after": "sudo nginx -t && sudo systemctl reload nginx"},
+    {"local": "deploy/flask-logrotate", "remote": "/etc/logrotate.d/flask", "sudo": true}
   ]
 }
 ```

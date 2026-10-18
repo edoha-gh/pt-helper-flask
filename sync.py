@@ -72,6 +72,7 @@ EXAMPLE = dict(
          "sudo": True, "after": "sudo systemctl daemon-reload"},
         {"local": "deploy/nginx-flask.conf", "remote": "/etc/nginx/conf.d/flask.conf",
          "sudo": True, "after": "sudo nginx -t && sudo systemctl reload nginx"},
+        {"local": "deploy/flask-logrotate", "remote": "/etc/logrotate.d/flask", "sudo": True},
     ],
 )
 

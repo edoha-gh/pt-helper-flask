@@ -1,0 +1,15 @@
+# Installed by `sync.py deploy` to /etc/logrotate.d/flask (root-owned, mode 644).
+# uwsgi runs with `log-reopen = true`, so a HUP to the main process reloads it and reopens the new file.
+/var/log/flask/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 www-data www-data
+    sharedscripts
+    postrotate
+        /usr/bin/systemctl kill --kill-who=main -s HUP flask.service >/dev/null 2>&1 || true
+    endscript
+}
