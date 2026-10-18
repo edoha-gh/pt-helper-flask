@@ -150,11 +150,11 @@ Because the content lives in a single `entries.json`, two people editing differe
 
 ## Add content
 
-Everything searchable lives in `content/entries.json`. Each entry has a title, phase, noise level, tags, summary and commands, plus optional notes and a caution. Edits show up on the next request with no restart. The full format is documented in `.claude/skills/pt-help-web/SKILL.md`.
+Everything searchable lives in `content/entries.json`. Each entry has a title, phase, noise level, tags, summary and commands, plus optional notes and a caution. Edits show up on the next request with no restart. The full format is documented in `SKILL.md`.
 
 ## Claude skill
 
-This repo includes a `/pt-help-web` skill for Claude Code under `.claude/skills/`. It knows how to start the site, test it and add entries.
+This repo is also a Claude skill, `/pt-helper-flask`: `SKILL.md` sits at the top level, so zipping this folder gives a file you can upload as a skill. It knows how to start the site, test it and add entries.
 
 ## Layout
 

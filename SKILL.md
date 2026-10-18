@@ -1,11 +1,11 @@
 ---
-name: pt-help-web
-description: Run, preview and extend the PT-Helper Flask web service, a searchable reference site for configuration review, vulnerability analysis and penetration test methodology and commands. Use whenever the user types /pt-help-web, or asks to start, restart, stop, preview or change the PT-Helper website, add or edit its pages or search content, or add new methodology entries or commands, even if they don't name the skill.
+name: pt-helper-flask
+description: Run, preview and extend the PT-Helper Flask web service, a searchable reference site for configuration review, vulnerability analysis and penetration test methodology and commands. Use whenever the user types /pt-helper-flask, or asks to start, restart, stop, preview or change the PT-Helper website, add or edit its pages or search content, or add new methodology entries or commands, even if they don't name the skill.
 ---
 
-# pt-help-web
+# pt-helper-flask
 
-A small Flask site that gives pentesters one searchable place for methodology steps, commands and configuration checks. The app files (`app.py`, `content/`, `sync.py` and the rest listed below) sit at the repository root, two levels above this skill folder in the repo, or in this skill's own folder when it is installed from the uploaded skill zip. Treat that folder as the root for every path below. The first version has a single main page with live search.
+A small Flask site that gives pentesters one searchable place for methodology steps, commands and configuration checks. The app files (`app.py`, `content/`, `sync.py` and the rest listed below) sit in the same folder as this `SKILL.md`, which is the root for every path below. The first version has a single main page with live search.
 
 ## What is here
 
@@ -23,14 +23,14 @@ deploy/wsgi.ini         uwsgi settings, installed to /var/www/flask/wsgi.ini
 deploy/flask.service    systemd unit, installed to /etc/systemd/system/flask.service
 deploy/flask-logrotate   logrotate rule for /var/log/flask/*.log, installed to /etc/logrotate.d/flask
 deploy/nginx-flask.conf nginx site (log formats, upstream, server), installed to /etc/nginx/conf.d/flask.conf
-.claude/skills/pt-help-web/SKILL.md   This file
+SKILL.md                This file (at the top level so the repo folder zips into an importable skill)
 ```
 
 ## Running it
 
 1. Install dependency if needed: `pip install -r requirements.txt` (add `--break-system-packages` when pip refuses).
 2. Check the port is free, then start in the background so the shell stays usable:
-   `cd <repo-root> && nohup python3 app.py > /tmp/pt-help-web.log 2>&1 &`
+   `cd <repo-root> && nohup python3 app.py > /tmp/pt-helper-flask.log 2>&1 &`
 3. Confirm with `curl -s http://127.0.0.1:5055/healthz`. It returns `{"status":"ok","entries":N}`.
 4. Tell the user the address. The default is `http://127.0.0.1:5055`.
 
