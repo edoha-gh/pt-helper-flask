@@ -5,7 +5,7 @@ description: Run, preview and extend the PT-Helper Flask web service, a searchab
 
 # pt-help-web
 
-A small Flask site that gives pentesters one searchable place for methodology steps, commands and configuration checks. The app lives at the repository root, two levels above this skill folder. The first version has a single main page with live search.
+A small Flask site that gives pentesters one searchable place for methodology steps, commands and configuration checks. The app files (`app.py`, `content/`, `sync.py` and the rest listed below) sit at the repository root, two levels above this skill folder in the repo, or in this skill's own folder when it is installed from the uploaded skill zip. Treat that folder as the root for every path below. The first version has a single main page with live search.
 
 ## What is here
 
