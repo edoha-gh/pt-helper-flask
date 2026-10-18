@@ -7,7 +7,7 @@
     delaycompress
     missingok
     notifempty
-    create 644 www-data www-data
+    create 640 www-data www-data
     sharedscripts
     postrotate
         /usr/bin/systemctl kill --kill-who=main -s HUP flask.service >/dev/null 2>&1 || true
